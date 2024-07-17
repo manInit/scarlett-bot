@@ -13,14 +13,16 @@ client.on('ready', () => {
 });
 
 client.on('interactionCreate', async (interaction) => {
-  if (!interaction.isChatInputCommand()) return;
+  if (!interaction.isChatInputCommand()) {
+    return;
+  }
 
   const command = commands.find(
     (command) => command.builder.name === interaction.commandName
   );
 
   if (!command) {
-    console.error('not found error');
+    console.error('command not found error');
     return;
   }
 

@@ -1,12 +1,11 @@
 import ICommand from './command.interface';
 import {
-  NoSubscriberBehavior,
   createAudioPlayer,
   createAudioResource,
   joinVoiceChannel,
 } from '@discordjs/voice';
 import { CommandInteraction, SlashCommandBuilder } from 'discord.js';
-import ytdl from 'ytdl-core-discord';
+import play from 'play-dl';
 
 const musicCommand: ICommand = {
   builder: new SlashCommandBuilder()
@@ -23,27 +22,31 @@ const musicCommand: ICommand = {
     const member = interaction.guild?.members.cache.get(
       interaction.member!.user.id!
     );
+    if (!member || !member.voice.channelId || !interaction.guild) {
+      return;
+    }
 
     const connection = joinVoiceChannel({
-      channelId: member!.voice.channelId!,
-      guildId: interaction.guild!.id,
-      adapterCreator: interaction.guild!.voiceAdapterCreator,
+      channelId: member.voice.channelId,
+      guildId: interaction.guild.id,
+      adapterCreator: interaction.guild.voiceAdapterCreator,
     });
-
     const url = interaction.options.get('url')?.value?.toString();
-    const stream = await ytdl(url!);
-    const resource = createAudioResource(stream);
-    const player = createAudioPlayer({
-      behaviors: {
-        noSubscriber: NoSubscriberBehavior.Play,
-      },
+    if (!url) {
+      return;
+    }
+
+    const stream = await play.stream(url);
+    const player = createAudioPlayer();
+    const resource = createAudioResource(stream.stream, {
+      inputType: stream.type,
     });
 
     player.play(resource);
     connection.subscribe(player);
 
     if (interaction.isRepliable()) {
-      await interaction.reply(url!);
+      await interaction.reply(url);
     }
   },
 };
