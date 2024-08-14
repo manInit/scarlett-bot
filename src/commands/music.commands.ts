@@ -7,8 +7,15 @@ import {
   NoSubscriberBehavior,
 } from '@discordjs/voice';
 import { CommandInteraction, SlashCommandBuilder } from 'discord.js';
-import fs from 'fs';
-import play from 'play-dl';
+import { createReadStream, existsSync, unlinkSync } from 'fs';
+import { join } from 'path';
+import youtubedl from 'youtube-dl-exec';
+
+const player = createAudioPlayer({
+  behaviors: {
+    noSubscriber: NoSubscriberBehavior.Play,
+  },
+});
 
 const musicCommand: ICommand = {
   builder: new SlashCommandBuilder()
@@ -39,28 +46,32 @@ const musicCommand: ICommand = {
     if (!url) {
       return;
     }
-    const yt_info = await play.video_info(url);
-    const stream = await play.stream_from_info(yt_info);
-    const resourceTR = createAudioResource(stream.stream, {
-      inputType: stream.type,
+    await interaction.deferReply({ ephemeral: true });
+    player.stop(true);
+    if (existsSync(join(__dirname, 'music.mp3'))) {
+      unlinkSync(join(__dirname, 'music.mp3'));
+    }
+    const fileName = await youtubedl(url, {
+      noCheckCertificates: true,
+      noWarnings: true,
+      addHeader: ['referer:youtube.com', 'user-agent:googlebot'],
+      extractAudio: true,
+      audioFormat: 'mp3',
+      output: join(__dirname, 'music.%(ext)s'),
     });
-    // const resource = createAudioResource(join(__dirname, 'test.wav'));
-    const outputStream = fs.createWriteStream('audio.ogg');
-    stream.stream.pipe(outputStream as any);
-    outputStream.on('finish', () => {
-      console.log('The audio data has been successfully saved to the file.');
-    });
+    if (!existsSync(join(__dirname, 'music.mp3'))) {
+      await interaction.editReply('Ошибка');
+      return;
+    }
+    const resource = createAudioResource(
+      createReadStream(join(__dirname, 'music.mp3'))
+    );
+    console.log('create player');
 
-    const player = createAudioPlayer({
-      behaviors: {
-        noSubscriber: NoSubscriberBehavior.Play,
-      },
-    });
-    player.play(resourceTR);
+    player.play(resource);
     connection.subscribe(player);
-
     if (interaction.isRepliable()) {
-      await interaction.reply(url);
+      await interaction.editReply(url);
     }
   },
 };
